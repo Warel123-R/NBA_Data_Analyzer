@@ -1,0 +1,353 @@
+---
+title: "Professional Basketball Player (NBA) Performance Analysis"
+author: "Ansh Kasturi, Julius Qin, Neko Zhang, Pranav Pullabhotla"
+date: "2022-12-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+library(lubridate)
+library(broman)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+```
+
+
+- The project members are **Ansh Kasturi**, **Julius Qin**, **Neko Zhang**, **Pranav Pullabhotla**
+
+## Introduction
+In the world of basketball today, there are hundreds of statistical categories measured when evaluating a player’s performance. Popular leagues like the NBA (National Basketball Association) measure everything, from a player’s win scores to their box plus minus when they are on the court with other players. In essence, an enormous amount of data is collected. However, we often struggle to connect the dots with these data. What is the connection between a player’s points and minutes? What is the general trend between two measured categories? In other words, by connecting data and finding relationships, the data gains meaning far greater than a simple numerical statistic. In our project, we analyzed data on field goals and free throws. Field goals and free throws are two main standards for measuring performance when it comes to points. **Field Goals** are shots that are made other than free throws, including two-points and three-points shots. **Free Throws** or foul shots are unopposed attempts to score points by shooting from behind the free-throw line. "Free throws are generally awarded after a foul on the shooter by the opposing team, analogous to penalty shots in other team sports." ^[[Free Throw - Wikipedia](https://en.wikipedia.org/wiki/Free_throw)]
+
+Since free throws and field goals are two important statistics for measuring a player’s offensive abilities and general skill set, we became interested in seeing what other data affects a player’s ability to make free throws and field goals, whether adversely or positively. Thus, we ask the question
+
+**Will older age or longer playtime in a game affect a players’ performance in terms of the number of Field Goals and Free Throws they make on the court?**
+
+In our analysis, we are interested in exploring the relationship between a player’s age and their ability to make shots that are not free throws based on data from the professional basketball league. Although the public widely believes older age could link to lower in-game performance for professional basketball players, the exact relationship of how it affects their ability to make shots is still needed to be discovered. We also wish to know if and how playtime in a single game affects a player’s free throw percentages. Our interests can be organized into the question as shown below:
+
+How is a player’s age associated with their ability to make field goals in a game, and what is the average trend among these numbers?
+What is the relationship between players’ playtime and their free throw percentage?
+Our hypothesis for question 1 is that **age will make the ability to earn field goals lower**. 
+Our hypothesis for question 2 is that **the longer a player's playtime is, the lower the free throw percentage they will have.**
+
+One possible unusual factor that may affect the result is the presence of outliers because they are not a good representation of the population. Therefore, we will eliminate their effects by removing outliers in our analysis for both questions.
+
+```{r, include=FALSE}
+nba_dataset <- read_csv("../../data/sportsref_download.csv")
+```
+
+## Background
+- *2022-2023 NBA Player Stat: Per Game* from Basketball Reference(https://www.basketball-reference.com/leagues/NBA_2023_per_game.html).
+
+- Basketball Reference's data for season 2022-23 is provided by SportRadar(https://sportradar.us/), which is the official statistical data provider of the NBA. It (via Second Spectrum, the official tracking provider of NBA) uses an optical tracking system that leverages multiple cameras placed in the catwalks in all 29 NBA arenas.
+
+- The site grants permission for fair use of the data. The specific terms of use can be found here (https://www.sports-reference.com/termsofuse.html).
+
+- The exact meaning of each variable's abbreviations can be obtained by hovering the mouse over the header of the online interactive table (or by referencing the appendix below). All variables are numbers except player names. The number of rows is the number of unique players in the dataset.
+
+Through the rest of the report, we intend to utilize the data to form a detailed analysis of our questions and determine if our hypothesis is true.
+
+#### Question 1: How is a player’s age related to their ability to make a certain number of field goals per game?
+
+## Analysis
+
+- For the purpose of finding the answer to our first question, we are going to focus on these variables: `FG` (Field Goals) and `Age`
+
+```{r, echo=FALSE}
+ggplot(nba_dataset, aes(y = Age)) +
+  geom_boxplot() +
+  theme(text = element_text(size = 10),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  labs(title = "Distribution of Player's Ages in the Original Dataset", x = "Age (years)")
+```
+
+```{r, include = FALSE}
+paste("Number of players in the original dataset:", nrow(nba_dataset))
+```
+> According to the boxplot above, there are two outliers for age among all 476 players. These outliers may interfere with the final prediction and thus will be removed. We will only keep the columns needed in our analysis: `FG`(field goals) and `Age`. Rows with missing values are also removed.
+
+```{r, include=FALSE}
+nba_q1 <- nba_dataset %>%
+  arrange(Age) %>%
+  head(-2) %>%
+  select(FG, Age) %>%
+  drop_na()
+
+paste("Number of players left after filtering", nrow(nba_q1))
+```
+> There are 474 players left in the dataset
+
+```{r, include=FALSE}
+min_age <- nba_q1 %>% pull(Age) %>% min()
+max_age <- nba_q1 %>% pull(Age) %>% max()
+paste("Age interval of players in the current dataset", min_age, "-", max_age)
+```
+
+> The ages of the players are between 19 and 37.
+
+> We will not filter out the outliers in field goals (column `FG`) since we believe high points are related to extraordinary skills and are closely associated with age. However, the age distribution may not be a result of how a player's skill is. Rather, it may relate to factors like early retirement caused by injuries.
+
+
+#### Scatter Plot
+
+```{r, echo=FALSE}
+ggplot(nba_q1, aes(x = Age, y = FG)) +
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  geom_smooth(method = lm, se = FALSE, color = "red") +
+  scale_x_continuous(breaks = 19:37) +
+  ggtitle("Field Goals vs Age of NBA Players", subtitle = "19 - 37yrs, season 2022-23") +
+  xlab("Age (years)") +
+  ylab("Field Goals (counts)") +
+  theme_bw() +
+  theme(text = element_text(size = 10))
+```
+
+  > The above scatter plot shows that the relationship between Age and Field Goals is generally non-linear from the Least Squares Regression (`lm` - <span style="color: red;">red line</span>). Therefore, we decided to separate the data into three age intervals and create three linear regression models. According to the Local Polynomial Regression (`loess` - <span style="color: blue;">blue curve</span>) above, turnings happen at ages 27 and 33, so they could be two great divide points.
+
+```{r, echo=FALSE}
+nba_q1 <- nba_q1 %>% mutate(Age_Interval = case_when(
+  Age <= 27 ~ "19-27",
+  Age > 27 & Age < 33 ~ "28-32",
+  Age >= 33 & Age <= 37 ~ "33-37"
+))
+
+ggplot(nba_q1, aes(x = Age, y = FG)) +
+  geom_point() +
+  geom_smooth(fill = "blue") +
+  geom_smooth(method = lm, fill = "red", color = "red") +
+  scale_x_continuous(breaks = 19:37) +
+  facet_grid(vars(Age_Interval)) +
+  ggtitle("Field Goals vs Age of NBA Players grouped by Ave Interval", subtitle = "19 - 37yrs, season 2022-23") +
+  xlab("Age (years)") +
+  ylab("Field Goals (counts)") +
+  theme_bw() +
+  theme(text = element_text(size = 10))
+```
+
+> From the plot above, we can see Age Interval from 19-27 is nearly linear. **Although** the Age Interval from 28-32 and 33-37 is **not linear**, we believe the linear model **will** also produce a reasonable prediction for our goals. <span style="text-decoration: underline;">This is because the Least Squares Regression (`lm` - <span style="color: red;">red line</span>) and its shaded region is almost **entirely within** the 95% confidence interval of the Local Polynomial Regression (`loess` - <span style="color: blue;">blue curve</span>) as shown by the shaded area. </span> Therefore, we believe the linear model will also produce a reasonable prediction for our goals.
+
+The equations in the linear model looks like the following:
+```{r, include=FALSE}
+lm(FG ~ Age_Interval, nba_q1)
+nba_q1 %>%
+  group_by(Age_Interval) %>%
+  summarise(Intercept = coef(lm(FG ~ Age))[1], Slope = coef(lm(FG ~ Age))[2])
+```
+
+$$
+\hat{y}_1 = -1.755 + 0.209x_1,
+$$
+where $\hat{y}_1$ is the predicted field goals corresponding to the age and $x_1$ is the age between 19 and 27 years old.
+
+
+$$
+\hat{y}_2 = 5.678 + -0.066x_2,
+$$
+where $\hat{y}_2$ is the predicted field goals corresponding to the age and $x_2$ is the age between 28 and 32 years old.
+
+
+$$
+\hat{y}_3 = 24.061 + -0.602x_3,
+$$
+where $\hat{y}_3$ is the predicted field goals corresponding to the age and $x_3$ is the age between 33 and 37 years old.
+
+
+
+## Discussion
+
+> From the equations and graph above, we can see that a player’s ability generally grows as they age if they are between 19 and 27 years old. However, the ability to make shots on the basketball court starts to decrease steadily as their age grows.
+
+> In order to find the true average ability to make field goals among professional NBA players, we will construct a 95-percent confidence interval to catch the true mean. For this part of our interest, it is still necessary to exclude two age outliers because we found that the ability to make shots decreases as age grows for those between 33 and 37 years old.
+
+```{r, include=FALSE}
+average <- nba_dataset %>% summarise(average_FG = mean(FG))
+standard_error <- nba_dataset %>% summarise(standard_error = sd(FG))
+
+paste("average", average)
+paste("standard error", standard_error)
+```
+
+We first find the average Field Goals among players in season 2022-23 to be 3.275 with standard error 2.527
+
+We are going to use the formula to construct the 95% confidence interval.
+$$
+\bar{x} \pm t^* \frac{s}{\sqrt{n}}
+$$
+where $\bar{x}$ is the mean field goals in the sample, $t^*$ is the t-score (the critical value), $s$ is the standard error, and $n$ is the sample size $486$
+
+
+```{r, include=FALSE}
+t <- qt(0.975, 476 - 2)
+average1 <- average %>% pull(average_FG)
+standard_error1 <- standard_error %>% pull(standard_error)
+confidence_interval <- average1 + c(-t, t) * (standard_error1 / sqrt(476))
+paste("Confidence interval:", confidence_interval[1], confidence_interval[2])
+```
+
+The confidence interval is **[3.047, 3.502]**
+
+> Based on the confidence interval, we are 95 confident that the true mean field goals a player can make in a single game is between 3.047 and 3.502 shots in the long run. Since it is unreasonable to have the number of field goal shots made as non-integer, we conclude, regardless of ages, that an average player will make 3 or 4 shots (that are not free throws) in a single game.
+
+
+```{r}
+here = nba_q1 %>%
+  group_by(Age_Interval) %>%
+  summarise(average_each_age = mean(FG))
+ggplot(here, aes(x = Age_Interval, y = average_each_age, fill = Age_Interval)) +
+  geom_col() +
+  ylab("Average Field Shots Made") +
+  xlab("Age Interval") +
+  ggtitle("Average Field Goals of Players", subtitle = "19 - 37 yrs, season 2022-23") +
+  theme(text = element_text(size = 10)) +
+  guides(color = guide_legend(title = "Age Interval")) +
+  annotate("rect", xmin = 0, xmax = 4, ymin = 3.047, ymax = 3.502, alpha = .2, fill = "red")
+
+```
+
+> The red, shaded region is where the true mean field goals are located, according to the 95% confidence interval we constructed.
+
+> Our conclusion for question 1 is that *A player will continue to improve his or her skills in terms of making field goals from 19 to 27 years old and will reach his or her hayday around the age of 27. This is why we see an increasing trend on Field Goals as age increases in the previous scatter plots. When looking at the ages from 28 to 32, players score more field goals, on average, than the other two age groups. However, their performance gradually decrease as time passes by. Overall, the youngest players generally score the least field goals, but as they age their potential increases and they can score more field goals in the future.* The confidence interval also verifies the validility of a part of our evaluation for their performance as we can see players in the age from 28 to 32 are outside the 95% confidence interval (above average!!).
+
+
+
+```{r, echo=FALSE}
+ggplot(nba_q1, aes(x = FG)) +
+  geom_bar(fill = "blue") +
+  annotate("rect", xmin = 3.047, xmax = 3.502, ymin = 0, ymax = 20, alpha = .4, fill = "red") +
+  xlab("Field Goal") +
+  ylab("Number of Players") +
+  ggtitle("Distribution of Field Goals among NBA Players", subtitle = "19 - 37 yrs, season 2022-23")
+
+```
+
+> The red, shaded region is where the true mean field goals are located, according to the 95% confidence interval we constructed.
+
+> It is also worth attention that only a limited number of students scored exactly 3 or 4 in a game. In fact, there is a relatively smaller portion of players who actually are on or above average (inside and on the right of the red-shade region) than those who are below the average (on the left of the red-shaded regions). However, this is not significant for our analysis because average intrinsically does not take other factors into account, such as the strategy and extreme cases. Thus, **Average** alone becomes a bad direct measurement of players' performance. This is a question that could be explored in the future: Is Average is really a good representation of players? Massive data on Field Goals or other performance statistics, across each season, can be used to refine both our topic and the new one. There are also factors, such as time and environmental factors, that require extra attention.
+
+> For our topic, it is also possible to use multiple regression to explore if there are other factors that outweigh Age factors or explore the existence of a "dominating factor", which should be overwhelming influential compared to others.
+
+> We are only using the confidence interval, which captures the average Field Goals regardless of age, to verify our data and consolidate our conclusion.
+
+> For the future, it is also worthwhile to explore how 2-point and 3-point field goals are related to each other and how age will affect them both.
+
+#### Question 2: What is the relationship between a player’s playtime (in minutes) and their free throw percentage?
+
+## Analysis
+- For the second question, we will use `MP` (Minutes Played in a game), `FT` (Number of successful Free Throws), and `FTA` (total number of Free Throw Attempts). By $$\frac{FT}{FTA}$$, we have `FTP` (Percentage of successful Free Throws)
+
+> We first check and see if there are any outliers in both playtime and free throw percentage because outliers are not a good representation of the entire population.
+
+```{r, echo=FALSE}
+nba2 <- nba_dataset %>% select(MP, FT, FTA) %>% drop_na()
+ggplot(nba2, aes(y = MP)) +
+  geom_boxplot() +
+  ylab("Playtime (minutes)") +
+  ggtitle("Playtime distribution") +
+  theme(text = element_text(size = 10),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+nba2 <- nba2 %>% mutate(FTP = FT / FTA)
+ggplot(nba2, aes(y = FTP)) +
+  geom_boxplot() +
+  ylab("Free Throw Percentage") +
+  ggtitle("Free Throw Percentage Distribution") +
+  theme(text = element_text(size = 10),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
+> From the box plots above, we can see there are no outliers for playtime. The 6 outliers for free throw percentage will be removed.
+
+```{r, echo=FALSE}
+nba2 <- nba2 %>%
+  arrange(desc(FTP)) %>%
+  head(-6) %>%
+  mutate(FTP = FTP * 100)
+
+ggplot(nba2, aes(x = MP, y = FTP)) +
+  geom_point() +
+  geom_smooth(fill = "blue") +
+  geom_smooth(method = lm, fill = "red", color = "red") +
+  xlab("Playtime (minutes)") +
+  ylab("Free Throw Percentage") +
+  ggtitle("Free Throw Percentage vs Playtime among NBA Players", subtitle = "19 - 37 yrs, season 2022-23") +
+  scale_x_continuous(breaks = 0:48) +
+  theme_bw() +
+  theme(text = element_text(size = 10))
+```
+
+> From the scatter plot above, it is surprising to see the free throw percentage has an increasing trend as playtime increases. We can also see that a linear regression model does not fit. Therefore, we use the same strategy as the last question: set three time intervals in between 0-10, 10-25, and 26-48.
+
+```{r, echo=FALSE}
+nba2 <- nba2 %>% mutate(Time_Interval = case_when(
+  MP <= 10 ~ "0-10",
+  MP > 10 & MP < 26 ~ "10-25",
+  MP >= 26 & MP <= 48 ~ "26-48"
+))
+
+ggplot(nba2, aes(x = MP, y = FTP)) +
+  geom_point() +
+  geom_smooth(fill = "blue") +
+  geom_smooth(method = lm, fill = "red", color = "red") +
+  facet_grid(vars(Time_Interval)) +
+  xlab("Playtime (minutes)") +
+  ylab("Free Throw Percentage") +
+  ggtitle("Free Throw Percentage vs Playtime among NBA Players grouped by playtime", subtitle = "19 - 37 yrs, season 2022-23") +
+  scale_x_continuous(breaks = 0:48) +
+  theme_bw() +
+  theme(text = element_text(size = 10))
+```
+
+## Discussion
+
+> From the plot above, we can see only the time interval between 0-10 is entirely non-linear. This is probably because percentage data are easily affected by a smaller set of data, or in this case, fewer chances to complete a free throw within a short period of time. The other two times present us as a linear model.
+
+> Another reason is that coaches are more likely to have players who do not perform well sit on the "bench", or not participating in the game. In other words, players with less minutes in the game will generally have a worse shooting ability because they are not as talented or skilled as the players who play more minutes. Players with better performance tend to stay longer because they start to get into the game after intense competition with their competitors. It can be beneficial if we make use of data in other season while carefully minimize the "skill growing" factors that will definitely occur after years of training.
+
+> For the future study, researchers can dive deep into the first 10-minutes of play time to find out what other statistics of performance are related to and result in the curve of this shape.
+
+> It is also noteworthy that the correlation from our analysis do not imply any causation. We only state there is a trend that describes how one variable changes as the other changes.
+
+### Reference
+*2022-2023 NBA Player Stat: Per Game* from Basketball Reference(https://www.basketball-reference.com/leagues/NBA_2023_per_game.html),
+
+### Appendix - Representation of all variables (pulled from the website)
+Data fields used in our project are marked in bold font.
+
+- Rk (Rank, integer)
+- Player's Name
+- **Age** (Player's age on February 1 of the season, integer)
+- G (Games, integer)
+- GS (Games Started, integer)
+- **MP** (Minutes Played)
+- **FG** (Field Goals)
+- FGA (Field Goal Attempts)
+- FG% (Field Goal Percentage)
+- 3P (3-Point Field Goals)
+- 3PA (3-Point Field Goal Attempts)
+- 3P% (3-Point Field Goal Percentage)
+- 2P (2-Point Field Goals)
+- 2PA (2-point Field Goal Attempts)
+- 2P% (2-Point Field Goal Percentage)
+- eFG% (Effective Field Goal Percentage This statistic adjusts for - the fact that a 3-point field goal is worth one more point than a - 2-point field goal.)
+- **FT** (Free Throws)
+- **FTA** (Free Throw Attempts)
+- FT% (Free Throw Percentage)
+- ORB (Offensive Rebounds)
+- DRB (Defensive Rebounds)
+- TRB (Total Rebounds)
+- AST (Assists)
+- STL (Steals)
+- BLK (Blocks)
+- TOV (Turnovers)
+- PF (Personal Fouls)
+- PTS (Points)
+
+
